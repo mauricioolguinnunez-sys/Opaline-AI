@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opaline AI</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<nav class="nav">
+  <span class="brand">Opaline AI</span>
+  <a href="index.html">Inicio</a>
+  <a href="planes.html">Planes</a>
+  <a href="chat.html">Chat</a>
+  <a href="muro.html">Muro</a>
+  <a href="login.html" id="nav-login">Entrar</a>
+</nav>
+<section class="hero">
+  <h1>IA local, privada y open source</h1>
+  <p class="muted">Modelos open source servidos por LM Studio. Sin APIs de terceros.</p>
+  <a class="btn" href="planes.html">Ver planes</a>
+</section>
+<div class="container">
+  <h2>Planes</h2>
+  <div id="plans" class="grid cols-3"></div>
+</div>
+<script src="js/api.js"></script>
+<script>
+async function loadPlans() {
+  try {
+    const plans = await OpalineAPI.api('/planes');
+    const el = document.getElementById('plans');
+    el.innerHTML = plans.map(p => `
+      <div class="card">
+        <h3>${p.name}</h3>
+        <div class="plan-price">$${p.price} ${p.currency}</div>
+        <p class="muted">${p.period}</p>
+        <ul>${p.features.map(f=>'<li>'+f+'</li>').join('')}</ul>
+        <a class="btn" href="checkout.html?plan=${p.id}">Comprar</a>
+      </div>
+    `).join('');
+  } catch (e) { document.getElementById('plans').textContent = 'No se pudieron cargar los planes.'; }
+}
+if (OpalineAPI.getToken()) {
+  const l = document.getElementById('nav-login'); l.textContent = 'Mi cuenta'; l.href = 'cuenta.html';
+}
+loadPlans();
+</script>
+</body>
+</html>

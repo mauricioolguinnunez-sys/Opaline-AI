@@ -1,0 +1,21 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Registro - Opaline AI</title><link rel="stylesheet" href="css/style.css"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></head><body>
+<nav class="nav"><span class="brand">Opaline AI</span></nav>
+<div class="container" style="max-width:420px">
+  <div class="card">
+    <h2>Crear cuenta</h2>
+    <input class="input" id="name" placeholder="Nombre" style="margin-bottom:12px">
+    <input class="input" id="email" placeholder="Correo" style="margin-bottom:12px">
+    <input class="input" id="password" type="password" placeholder="Contrasena (min 10)" style="margin-bottom:12px">
+    <button class="btn" onclick="reg()">Registrarse</button>
+    <p id="msg" class="muted"></p>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+async function reg(){
+  try {
+    await OpalineAPI.api('/auth/register', {method:'POST', body: JSON.stringify({name:document.getElementById('name').value, email:document.getElementById('email').value, password:document.getElementById('password').value})});
+    document.getElementById('msg').textContent = 'Registrado. Inicia sesion.';
+  } catch(e){ document.getElementById('msg').textContent = 'Error al registrar'; }
+}
+</script></body></html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat - Opaline AI</title><link rel="stylesheet" href="css/style.css"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></head><body>
+<nav class="nav"><span class="brand">Opaline AI</span><a href="index.html">Inicio</a><a href="chat.html">Chat</a></nav>
+<div class="container">
+  <h2>Chatbot</h2>
+  <div id="models" class="row" style="margin-bottom:8px"></div>
+  <div class="chat-box" id="chat"></div>
+  <div class="row" style="margin-top:8px">
+    <input class="input" id="msg" placeholder="Escribe tu mensaje...">
+    <button class="btn" onclick="send()">Enviar</button>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+let selectedModel = '';
+async function loadModels(){
+  const data = await OpalineAPI.api('/ai/models');
+  const models = data.models || [];
+  selectedModel = data.default || (models[0]||'');
+  document.getElementById('models').innerHTML = models.map(m=>`<button class="btn outline" onclick="selectedModel='${m}'">${m}</button>`).join('');
+}
+async function send(){
+  const text = document.getElementById('msg').value;
+  document.getElementById('msg').value='';
+  const chat = document.getElementById('chat');
+  chat.innerHTML += `<div class="msg user">${text}</div>`;
+  try {
+    const data = await OpalineAPI.api('/ai/chat', {method:'POST', body: JSON.stringify({message:text, model:selectedModel})});
+    chat.innerHTML += `<div class="msg assistant">${data.reply}</div>`;
+  } catch(e){ chat.innerHTML += `<div class="msg assistant">Error: ${JSON.stringify(e)}</div>`; }
+  chat.scrollTop = chat.scrollHeight;
+}
+loadModels();
+</script></body></html>

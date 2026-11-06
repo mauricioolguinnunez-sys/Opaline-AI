@@ -1,0 +1,23 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout - Opaline AI</title><link rel="stylesheet" href="css/style.css"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></head><body>
+<nav class="nav"><span class="brand">Opaline AI</span></nav>
+<div class="container" style="max-width:520px">
+  <div class="card">
+    <h2>Checkout</h2>
+    <p id="plan"></p>
+    <button class="btn" onclick="pay()">Pagar (demo)</button>
+    <p id="msg" class="muted"></p>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const planId = params.get('plan');
+document.getElementById('plan').textContent = 'Plan: ' + planId;
+async function pay(){
+  try {
+    const data = await OpalineAPI.api('/payments/paypal/create', {method:'POST', body: JSON.stringify({plan_id: planId})});
+    const v = await OpalineAPI.api('/payments/paypal/verify/'+data.order_id);
+    document.getElementById('msg').textContent = 'Pago completado: ' + v.status;
+  } catch(e){ document.getElementById('msg').textContent = 'Error: ' + JSON.stringify(e); }
+}
+</script></body></html>

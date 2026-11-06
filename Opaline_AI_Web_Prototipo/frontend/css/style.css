@@ -1,0 +1,40 @@
+:root {
+  --bg: #F1EAFC;
+  --surface: #FFFFFF;
+  --primary: #9369E5;
+  --primary-dark: #4E2EA2;
+  --surface-dark: #211354;
+  --bg-dark: #0B091F;
+  --text: #211354;
+  --text-sec: #5C4A7A;
+  --error: #FF5C5C;
+  --success: #4CAF50;
+  --radius: 16px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: linear-gradient(135deg, #F7F2FE, #F1EAFC);
+  color: var(--text);
+}
+a { color: var(--primary); text-decoration: none; }
+.container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+.nav { display: flex; gap: 16px; align-items: center; padding: 16px 24px; background: #fff; border-bottom: 1px solid #E3DAF6; }
+.nav .brand { font-weight: 700; font-size: 20px; color: var(--primary-dark); }
+.nav a { font-weight: 500; }
+.card { background: var(--surface); border: 1px solid #E3DAF6; border-radius: 20px; padding: 20px; box-shadow: 0 2px 8px rgba(78,46,162,0.06); }
+.btn { background: var(--primary); color: #fff; border: none; padding: 12px 20px; border-radius: 16px; cursor: pointer; font-weight: 600; }
+.btn.outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+.input { width: 100%; padding: 12px 14px; border: 1.2px solid #D8CEF2; border-radius: 14px; font-size: 14px; }
+.grid { display: grid; gap: 16px; }
+.grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.hero { padding: 60px 24px; text-align: center; }
+.hero h1 { font-size: 40px; margin: 0 0 12px; color: var(--primary-dark); }
+.plan-price { font-size: 32px; font-weight: 700; color: var(--primary); }
+.muted { color: var(--text-sec); }
+.chat-box { height: 420px; overflow-y: auto; border: 1px solid #E3DAF6; border-radius: 16px; padding: 16px; background: #fff; }
+.msg { margin: 8px 0; padding: 10px 14px; border-radius: 14px; max-width: 80%; }
+.msg.user { background: var(--primary); color: #fff; margin-left: auto; }
+.msg.assistant { background: #F1EAFC; color: var(--text); }
+.row { display: flex; gap: 8px; }

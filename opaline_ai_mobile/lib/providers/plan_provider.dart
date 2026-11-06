@@ -59,6 +59,10 @@ class PlanProvider extends ChangeNotifier {
   }
 
   /// Catalogo de planes con precio MXN, periodicidad, cuotas, caracteristicas (RF-MOV-01 / RF-MOV-03).
+  Future<bool> _demoSessionActive() async {
+    try { return (await SecureStorage.read('demo_mode')) == 'true'; } catch (_) { return false; }
+  }
+
   Future<void> loadPlans({bool forceNetwork = false}) async {
     if (!forceNetwork && _plans.isNotEmpty) return;
     _setLoading(true);

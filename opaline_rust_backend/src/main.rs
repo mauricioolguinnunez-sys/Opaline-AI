@@ -37,7 +37,7 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
         .nest("/api/v1", routes::router())
-        .fallback_service(ServeDir::new("static"))
+        .fallback_service(ServeDir::new("/home/mauricioon/Documentos/Opaline_build/Opaline_AI_Web_Prototipo/frontend"))
         .layer(CorsLayer::permissive())
         .with_state(state);
 

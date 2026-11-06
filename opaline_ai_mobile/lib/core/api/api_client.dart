@@ -12,8 +12,8 @@ import 'package:http/io_client.dart';
 /// - Circuit breaker: tras un fallo de red, las siguientes peticiones fallan de
 ///   inmediato durante 30 s. Asi el modo demo no espera 8 s por cada pantalla.
 class ApiClient {
-  static const String businessBaseUrl = 'https://www.opaline-ai.com/api/v1';
-  static const String aiBaseUrl = 'https://www.opaline-ai.com/api/v1';
+  static const String businessBaseUrl = kDebugMode ? 'http://127.0.0.1:8090/api/v1' : 'https://www.opaline-ai.com/api/v1';
+  static const String aiBaseUrl = kDebugMode ? 'http://127.0.0.1:8090/api/v1' : 'https://www.opaline-ai.com/api/v1';
 
   /// Timeout de red para la API de negocio (login, planes, muro, pagos).
   static const Duration businessTimeout = Duration(seconds: 8);

@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cuenta - Opaline AI</title><link rel="stylesheet" href="css/style.css"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></head><body>
+<nav class="nav"><span class="brand">Opaline AI</span><a href="index.html">Inicio</a><a href="cuenta.html">Cuenta</a></nav>
+<div class="container">
+  <h2>Mi cuenta</h2>
+  <div class="card" id="sub"></div>
+  <h3 style="margin-top:16px">Mis conversaciones</h3>
+  <div id="convs"></div>
+</div>
+<script src="js/api.js"></script>
+<script>
+async function load(){
+  try {
+    const sub = await OpalineAPI.api('/suscripcion');
+    document.getElementById('sub').innerHTML = `<p>Estado: <strong>${sub.status}</strong></p><p>Plan: ${sub.plan_name||'-'}</p>`;
+  } catch(e){ document.getElementById('sub').textContent='Sin sesion'; }
+  try {
+    const convs = await OpalineAPI.api('/ai/conversations');
+    document.getElementById('convs').innerHTML = (Array.isArray(convs)?convs:[]).map(c=>`<div class="card" style="margin-bottom:8px">${c.title}</div>`).join('') || 'Sin conversaciones';
+  } catch(e){}
+}
+load();
+</script></body></html>

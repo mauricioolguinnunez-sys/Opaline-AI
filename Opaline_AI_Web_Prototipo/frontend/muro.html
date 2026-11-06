@@ -1,0 +1,24 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Muro - Opaline AI</title><link rel="stylesheet" href="css/style.css"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></head><body>
+<nav class="nav"><span class="brand">Opaline AI</span><a href="index.html">Inicio</a><a href="muro.html">Muro</a></nav>
+<div class="container">
+  <h2>Muro de experiencias</h2>
+  <div class="card" style="margin-bottom:16px">
+    <textarea class="input" id="content" rows="3" placeholder="Tu experiencia (20-1000 chars)"></textarea>
+    <button class="btn" style="margin-top:8px" onclick="publish()">Publicar</button>
+  </div>
+  <div id="posts"></div>
+</div>
+<script src="js/api.js"></script>
+<script>
+async function load(){
+  const posts = await OpalineAPI.api('/muro');
+  document.getElementById('posts').innerHTML = posts.map(p=>`<div class="card" style="margin-bottom:12px"><strong>${p.alias}</strong> <span class="muted">${p.created_at}</span><p>${p.content}</p>${p.rating?`<span>⭐ ${p.rating}</span>`:''}</div>`).join('');
+}
+async function publish(){
+  const content = document.getElementById('content').value;
+  await OpalineAPI.api('/muro', {method:'POST', body: JSON.stringify({content})});
+  document.getElementById('content').value='';
+  load();
+}
+load();
+</script></body></html>
