@@ -1,0 +1,63 @@
+name: opaline_ai_mobile
+description: "App móvil de Opaline AI — espejo funcional de la web (catalogo, cuenta, chat, historial y muro)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI / icons
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+
+  # HTTP client
+  http: ^1.3.0
+  flutter_localizations:
+    sdk: flutter
+
+  # State management & navigation
+  provider: ^6.1.2
+  go_router: ^14.2.0
+
+  # Almacenamiento local de credenciales/tokens (cifrado ligero).
+  # NOTA: en produccion Android/iOS reemplazar por flutter_secure_storage
+  # (Keychain / EncryptedSharedPreferences) para cumplir RNF-MOV-02 al 100 %.
+  shared_preferences: ^2.3.3
+
+  # Conectividad y red
+  connectivity_plus: ^6.1.1
+
+  # Cache local cifrada (Hive)
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.3
+
+  # Enlaces profundos
+  url_launcher: ^6.3.1
+
+  # WebView para checkout de PayPal con barra de direccion visible
+  webview_flutter: ^4.10.0
+
+  # Compartir conversaciones / publicaciones
+  share_plus: ^9.0.0
+
+  # Fechas y formato (MXN)
+  intl: ^0.20.3
+
+  # Utilidades criptograficas (hash de cache)
+  crypto: ^3.0.3
+
+  # Matematicas en respuestas del chat (LaTeX)
+  flutter_math_fork: ^0.7.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
