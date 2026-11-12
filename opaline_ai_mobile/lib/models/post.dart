@@ -10,6 +10,7 @@ class WallPost {
   final int commentsCount;
   final DateTime createdAt;
   final bool reported;
+  final int rating;
 
   WallPost({
     required this.id,
@@ -22,21 +23,23 @@ class WallPost {
     required this.commentsCount,
     required this.createdAt,
     this.reported = false,
+    this.rating = 0,
   });
 
   factory WallPost.fromJson(Map<String, dynamic> json) => WallPost(
         id: json['id'] ?? '',
         userId: json['user_id'] ?? '',
-        userName: json['user_name'] ?? '',
+        userName: json['user_name'] ?? json['alias'] ?? '',
         userAvatar: json['user_avatar'],
         content: json['content'] ?? '',
         likes: json['likes'] ?? 0,
         likedByMe: json['liked_by_me'] ?? false,
         commentsCount: json['comments_count'] ?? 0,
         createdAt: json['created_at'] != null
-            ? DateTime.tryParse(json['created_at']) ?? DateTime.now()
+            ? DateTime.tryParse(json['created_at'].toString().replaceFirst(' ', 'T')) ?? DateTime.now()
             : DateTime.now(),
         reported: json['reported'] ?? false,
+        rating: json['rating'] ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
@@ -50,6 +53,7 @@ class WallPost {
         'comments_count': commentsCount,
         'created_at': createdAt.toIso8601String(),
         'reported': reported,
+        'rating': rating,
       };
 
   WallPost copyWith({

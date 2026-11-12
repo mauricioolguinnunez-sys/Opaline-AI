@@ -47,14 +47,22 @@ class OpalineApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) {
             final p = PlanProvider();
+            AuthProvider.registerSessionClearer(p.clearPrivateData);
             WidgetsBinding.instance.addPostFrameCallback((_) => p.init());
             return p;
           },
         ),
-        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final p = ChatProvider();
+            AuthProvider.registerSessionClearer(p.clearPrivateData);
+            return p;
+          },
+        ),
         ChangeNotifierProvider(
           create: (_) {
             final p = WallProvider();
+            AuthProvider.registerSessionClearer(p.clearPrivateData);
             WidgetsBinding.instance.addPostFrameCallback((_) => p.init());
             return p;
           },

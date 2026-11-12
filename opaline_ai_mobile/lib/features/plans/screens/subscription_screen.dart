@@ -22,9 +22,8 @@ class SubscriptionScreen extends StatelessWidget {
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Factura descargada.')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Factura descargada.')));
   }
 
   @override
@@ -45,10 +44,11 @@ class SubscriptionScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
-                      color: (sub?.isActive == true
-                              ? AppTheme.successColor
-                              : AppTheme.warningColor)
-                          .withOpacity(0.12),
+                      color:
+                          (sub?.isActive == true
+                                  ? AppTheme.successColor
+                                  : AppTheme.warningColor)
+                              .withOpacity(0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Column(
@@ -69,13 +69,15 @@ class SubscriptionScreen extends StatelessWidget {
                               child: Text(
                                 sub?.planName ?? 'Sin plan activo',
                                 style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? AppTheme.textDark
-                                        : AppTheme.textLight,
-                                    fontFamily: 'Poppins'),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? AppTheme.textDark
+                                      : AppTheme.textLight,
+                                  fontFamily: 'Poppins',
+                                ),
                               ),
                             ),
                           ],
@@ -86,23 +88,32 @@ class SubscriptionScreen extends StatelessWidget {
                               ? 'No tienes una suscripcion activa.'
                               : 'Estado: ${sub.status}',
                           style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? AppTheme.textDarkSecondary
-                                  : AppTheme.textLightSecondary,
-                              fontFamily: 'Poppins'),
+                            fontSize: 14,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? AppTheme.textDarkSecondary
+                                : AppTheme.textLightSecondary,
+                            fontFamily: 'Poppins',
+                          ),
                         ),
                         if (sub != null && sub.nextBilling != null) ...[
                           const SizedBox(height: 8),
-                          Text('Proximo cobro: ${_fmt(sub.nextBilling!)}',
-                              style: const TextStyle(
-                                  fontSize: 14, fontFamily: 'Poppins')),
+                          Text(
+                            'Proximo cobro: ${_fmt(sub.nextBilling!)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
                         ],
                         if (sub != null && sub.endsAt != null)
-                          Text('Acceso hasta: ${_fmt(sub.endsAt!)}',
-                              style: const TextStyle(
-                                  fontSize: 14, fontFamily: 'Poppins')),
+                          Text(
+                            'Acceso hasta: ${_fmt(sub.endsAt!)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -113,15 +124,18 @@ class SubscriptionScreen extends StatelessWidget {
                       height: 48,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.errorColor,
-                            side: const BorderSide(color: AppTheme.errorColor)),
+                          foregroundColor: AppTheme.errorColor,
+                          side: const BorderSide(color: AppTheme.errorColor),
+                        ),
                         onPressed: () async {
                           final ok = await provider.cancelRenewal();
                           if (ok && context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                  content: Text(
-                                      'Renovacion cancelada. Mantienes acceso hasta la fecha de fin.')),
+                                content: Text(
+                                  'Renovacion cancelada. Mantienes acceso hasta la fecha de fin.',
+                                ),
+                              ),
                             );
                           }
                         },
@@ -129,9 +143,13 @@ class SubscriptionScreen extends StatelessWidget {
                       ),
                     )
                   else if (sub != null && sub.isActive && !sub.autoRenew)
-                    const Text('La renovacion esta cancelada.',
-                        style: TextStyle(
-                            color: AppTheme.errorColor, fontFamily: 'Poppins')),
+                    const Text(
+                      'La renovacion esta cancelada.',
+                      style: TextStyle(
+                        color: AppTheme.errorColor,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -149,22 +167,30 @@ class SubscriptionScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  Text('Historial de pagos y facturas',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).brightness ==
-                                  Brightness.dark
-                              ? AppTheme.textDark
-                              : AppTheme.textLight,
-                          fontFamily: 'Poppins')),
+                  Text(
+                    'Historial de pagos y facturas',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? AppTheme.textDark
+                          : AppTheme.textLight,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   if (invoices.isEmpty)
-                    const Text('No hay facturas disponibles.',
-                        style: TextStyle(fontSize: 14, fontFamily: 'Poppins'))
+                    const Text(
+                      'No hay facturas disponibles.',
+                      style: TextStyle(fontSize: 14, fontFamily: 'Poppins'),
+                    )
                   else
-                    ...invoices.map((inv) => _InvoiceCard(
-                        invoice: inv, onDownloadPdf: () => _downloadPdf(context, inv))),
+                    ...invoices.map(
+                      (inv) => _InvoiceCard(
+                        invoice: inv,
+                        onDownloadPdf: () => _downloadPdf(context, inv),
+                      ),
+                    ),
                   const SizedBox(height: 30),
                 ],
               ),
@@ -183,20 +209,28 @@ class _InvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        title: Text('Factura #${invoice.id}',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Poppins')),
-        subtitle: Text('${invoice.amountFormatted}  •  ${invoice.status}',
-            style: const TextStyle(fontSize: 13, fontFamily: 'Poppins')),
+        title: Text(
+          'Factura #${invoice.id}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Poppins',
+          ),
+        ),
+        subtitle: Text(
+          '${invoice.amountFormatted}  •  ${invoice.status}',
+          style: const TextStyle(fontSize: 13, fontFamily: 'Poppins'),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (invoice.pdfUrl != null || invoice.status == 'paid')
               IconButton(
-                  icon: const Icon(Icons.picture_as_pdf), onPressed: onDownloadPdf),
+                icon: const Icon(Icons.picture_as_pdf),
+                onPressed: onDownloadPdf,
+              ),
             if (invoice.status == 'paid')
               IconButton(
                 icon: const Icon(Icons.send, color: AppTheme.warningColor),
@@ -206,11 +240,13 @@ class _InvoiceCard extends StatelessWidget {
                     builder: (_) => AlertDialog(
                       title: const Text('Solicitar reembolso'),
                       content: const Text(
-                          '¿Deseas solicitar el reembolso de esta factura?'),
+                        '¿Deseas solicitar el reembolso de esta factura?',
+                      ),
                       actions: [
                         TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancelar')),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancelar'),
+                        ),
                         ElevatedButton(
                           onPressed: () async {
                             final ok = await context
@@ -220,8 +256,10 @@ class _InvoiceCard extends StatelessWidget {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                    content: Text(
-                                        'Solicitud de reembolso enviada.')),
+                                  content: Text(
+                                    'Solicitud de reembolso enviada.',
+                                  ),
+                                ),
                               );
                             }
                           },

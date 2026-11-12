@@ -51,21 +51,33 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: TextField(
-                  controller: _ctrl,
-                  maxLines: null,
-                  expands: true,
-                  textInputAction: TextInputAction.done,
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) => _publish(),
-                  decoration: InputDecoration(
-                    hintText: 'Comparte tu experiencia con Opaline AI...',
-                    hintStyle: TextStyle(color: isDark ? const Color(0xFF8B7DCB) : const Color(0xFF9A8CC7), fontFamily: 'Poppins'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    filled: true,
-                    fillColor: isDark ? const Color(0xFF1A123E) : const Color(0xFFF1EAFC),
-                    contentPadding: const EdgeInsets.all(16),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl,
+                        maxLines: null,
+                        expands: true,
+                        maxLength: 1000,
+                        textInputAction: TextInputAction.newline,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Comparte tu experiencia con Opaline AI...',
+                          hintStyle: TextStyle(color: isDark ? const Color(0xFF8B7DCB) : const Color(0xFF9A8CC7), fontFamily: 'Poppins'),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1A123E) : const Color(0xFFF1EAFC),
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${_ctrl.text.trim().length} / 1000 · mínimo 20 caracteres',
+                      style: TextStyle(fontSize: 12, color: isDark ? AppTheme.textDarkSecondary : AppTheme.textLightSecondary, fontFamily: 'Poppins'),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -75,7 +87,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _posting || _ctrl.text.trim().isEmpty ? null : _publish,
+                  onPressed: _posting || _ctrl.text.trim().length < 20 ? null : _publish,
                   child: _posting
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Publicar'),

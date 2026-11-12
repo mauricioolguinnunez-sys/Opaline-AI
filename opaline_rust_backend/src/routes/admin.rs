@@ -12,11 +12,12 @@ pub fn router() -> Router<AppState> {
         .route("/metrics", get(metrics))
         .route("/ai-stats", get(ai_stats))
         .route("/models/:id/toggle", put(toggle_model))
+        .route("/planes/:id/versions", post(create_plan_version))
         .route("/expenses", get(list_expenses).post(create_expense))
         .route("/reports/financial", get(financial_report))
 }
 
-async fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<String, StatusCode> {
+pub async fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<String, StatusCode> {
     let t = headers.get("authorization").and_then(|v| v.to_str().ok()).and_then(|s| s.strip_prefix("Bearer ")).map(|s| s.to_string()).ok_or(StatusCode::UNAUTHORIZED)?;
     let uid = user_id_from_token(state, &t).await.ok_or(StatusCode::UNAUTHORIZED)?;
     let row = sqlx::query("SELECT role FROM users WHERE id=?").bind(&uid).fetch_one(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -91,6 +92,50 @@ async fn create_expense(headers: HeaderMap, State(state): State<AppState>, Json(
         .bind(&id).bind(&date).bind(&req.category).bind(&req.amount).bind(req.currency.unwrap_or_else(|| "MXN".to_string())).bind(&req.note)
         .execute(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(serde_json::json!({"id":id})))
+}
+
+#[derive(Deserialize)]
+struct PlanVersionReq {
+    version: i32,
+    price: f64,
+    currency: Option<String>,
+    messages_per_month: i32,
+    features: Option<Vec<String>>,
+    effective_from: Option<String>,
+    effective_to: Option<String>,
+    status: Option<String>,
+}
+
+async fn create_plan_version(Path(plan_id): Path<String>, headers: HeaderMap, State(state): State<AppState>, Json(req): Json<PlanVersionReq>) -> Result<Json<serde_json::Value>, StatusCode> {
+    require_admin(&state, &headers).await?;
+    // Ensure the base plan exists.
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM plans WHERE id=? OR code=?")
+        .bind(&plan_id).bind(&plan_id).fetch_optional(&state.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let plan_id = exists.map(|r| r.0).ok_or(StatusCode::NOT_FOUND)?;
+    let features = serde_json::to_string(&req.features.unwrap_or_default()).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let id = uuid::Uuid::new_v4().to_string();
+    let effective_from = req.effective_from.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string());
+    let status = req.status.unwrap_or_else(|| "draft".to_string());
+    if !matches!(status.as_str(), "draft" | "active" | "inactive") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let result = sqlx::query("INSERT INTO plan_versions (id,plan_id,version,price,currency,messages_per_month,features,effective_from,effective_to,status) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(&id)
+        .bind(&plan_id)
+        .bind(req.version)
+        .bind(req.price)
+        .bind(req.currency.unwrap_or_else(|| "MXN".to_string()))
+        .bind(req.messages_per_month)
+        .bind(&features)
+        .bind(&effective_from)
+        .bind(&req.effective_to)
+        .bind(&status)
+        .execute(&state.pool).await;
+    match result {
+        Ok(_) => Ok(Json(serde_json::json!({"id":id,"plan_id":plan_id,"version":req.version}))),
+        Err(sqlx::Error::Database(db)) if db.code().as_deref() == Some("1062") => Err(StatusCode::CONFLICT),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 async fn financial_report(headers: HeaderMap, State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {

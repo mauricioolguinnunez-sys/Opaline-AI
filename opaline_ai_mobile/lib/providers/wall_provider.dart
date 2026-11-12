@@ -41,6 +41,13 @@ class WallProvider extends ChangeNotifier {
   }
 
   /// Lee el muro en modo solo lectura sin conexion con cache cifrada (RF-MOV-01).
+  Future<void> clearPrivateData() async {
+    _posts = <WallPost>[];
+    _demo = false;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> loadPosts({bool forceNetwork = false}) async {
     if (!forceNetwork && _posts.isNotEmpty) return;
     _setLoading(true);
@@ -68,18 +75,15 @@ class WallProvider extends ChangeNotifier {
       final res = await ApiClient().get('/muro');
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body) as List;
-        final parsed = list.map((e) => WallPost.fromJson(e)).toList();
-        if (parsed.isNotEmpty) {
-          _demo = false;
-          _posts = parsed;
-          await CacheService.instance.put(
-            'wall',
-            'feed',
-            jsonEncode(_posts.map((p) => p.toJson()).toList()),
-          );
-          _setLoading(false);
-          return;
-        }
+        _demo = false;
+        _posts = list.map((e) => WallPost.fromJson(e)).toList();
+        await CacheService.instance.put(
+          'wall',
+          'feed',
+          jsonEncode(_posts.map((p) => p.toJson()).toList()),
+        );
+        _setLoading(false);
+        return;
       }
     } catch (_) {
       // API no disponible -> muro demo.
@@ -146,8 +150,8 @@ class WallProvider extends ChangeNotifier {
 
   /// Publica una experiencia (RF-MOV-01 / RF-WEB-04).
   Future<bool> createPost(String content, {String authorName = 'Usuario Opaline'}) async {
-    if (content.trim().isEmpty || content.length > 2000) {
-      _setError('La publicacion debe tener entre 1 y 2000 caracteres.');
+    if (content.trim().length < 20 || content.trim().length > 1000) {
+      _setError('La publicacion debe tener entre 20 y 1000 caracteres.');
       return false;
     }
     _setLoading(true);
@@ -171,17 +175,18 @@ class WallProvider extends ChangeNotifier {
 
     try {
       final res = await ApiClient().post('/muro', body: {'content': content});
-      _setLoading(false);
       if (res.statusCode == 200 || res.statusCode == 201) {
-        final data = jsonDecode(res.body);
-        final post = WallPost.fromJson(data['post'] ?? {});
-        _posts.insert(0, post);
-        notifyListeners();
+        await loadPosts(forceNetwork: true);
         return true;
       }
-      _setError('No se pudo publicar.');
+      _setLoading(false);
+      _setError(res.statusCode == 401
+          ? 'Inicia sesion para publicar en el muro.'
+          : res.statusCode == 400
+              ? 'La publicacion debe tener entre 20 y 1000 caracteres.'
+              : 'No se pudo publicar (${res.statusCode}).');
     } catch (_) {
-      // Fallback local: la publicacion queda visible en este dispositivo.
+      // Sin backend: la publicacion queda visible localmente para no perderla.
       _demo = true;
       final post = WallPost(
         id: 'demo-local-${DateTime.now().millisecondsSinceEpoch}',
@@ -195,6 +200,7 @@ class WallProvider extends ChangeNotifier {
       );
       _posts.insert(0, post);
       _setLoading(false);
+      notifyListeners();
       return true;
     }
     return false;
@@ -237,11 +243,12 @@ class WallProvider extends ChangeNotifier {
     }
     try {
       final res = await ApiClient().delete('/muro/$postId');
-      if (res.statusCode == 200) {
+      if (res.statusCode == 200 || res.statusCode == 204) {
         _posts.removeWhere((p) => p.id == postId);
         notifyListeners();
         return true;
       }
+      _setError('No se pudo eliminar la publicacion (${res.statusCode}).');
     } catch (_) {}
     return false;
   }
@@ -257,8 +264,10 @@ class WallProvider extends ChangeNotifier {
       return true;
     }
     try {
-      final res = await ApiClient().post('/muro/$postId/reportar',
-          body: {'motivo': motivo ?? 'contenido_inadecuado'});
+      final res = await ApiClient().post('/muro/$postId/reportar', body: {
+        'reason': motivo ?? 'contenido_inadecuado',
+        'detail': '',
+      });
       if (res.statusCode == 200) {
         final idx = _posts.indexWhere((p) => p.id == postId);
         if (idx != -1) {

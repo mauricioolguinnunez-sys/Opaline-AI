@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/app_theme.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/plan_provider.dart';
 import '../../../models/plan.dart';
 
@@ -13,10 +14,19 @@ class PlansScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final auth = context.watch<AuthProvider>();
+    final firstName = (auth.user?.name ?? 'Usuario').split(' ').first;
     return Scaffold(
-      appBar: AppBar(title: const Text('Planes'), actions: [
-        IconButton(icon: const Icon(Icons.refresh), onPressed: () => context.read<PlanProvider>().loadPlans(forceNetwork: true)),
-      ]),
+      appBar: AppBar(
+        title: const Text('Opaline AI', style: TextStyle(fontWeight: FontWeight.w800)),
+        actions: [
+          IconButton(
+            tooltip: 'Actualizar planes',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => context.read<PlanProvider>().loadPlans(forceNetwork: true),
+          ),
+        ],
+      ),
       body: Consumer<PlanProvider>(
         builder: (context, provider, _) {
           if (provider.error != null && provider.plans.isEmpty) {
@@ -27,13 +37,74 @@ class PlansScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF2A1668), Color(0xFF4E2EA2), Color(0xFF9369E5)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryDark.withOpacity(.24),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Hola, $firstName 👋', style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -.4)),
+                        const SizedBox(height: 6),
+                        const Text('Tu IA privada, lista cuando tú lo estés.', style: TextStyle(color: Color(0xFFE2D8FF), fontSize: 13)),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppTheme.primaryDark,
+                                  minimumSize: const Size(0, 44),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: () => context.goNamed('chat'),
+                                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                                label: const Text('Abrir chat', style: TextStyle(fontSize: 13)),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: const BorderSide(color: Colors.white54),
+                                  minimumSize: const Size(0, 44),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: () => context.goNamed('muro'),
+                                icon: const Icon(Icons.forum_outlined, size: 18),
+                                label: const Text('Muro', style: TextStyle(fontSize: 13)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Elige tu plan', style: _title(isDark)),
                       const SizedBox(height: 6),
-                      Text('Precios en MXN. Una sola suscripcion para web y movil.', style: _sub(isDark)),
+                      Text('Precios en MXN. Una sola suscripción para web y móvil.', style: _sub(isDark)),
                     ],
                   ),
                 ),

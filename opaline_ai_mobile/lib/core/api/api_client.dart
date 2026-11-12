@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
+import '../services/secure_storage.dart';
+
 /// Cliente HTTP centralizado para la API de negocio (PHP) y la API de IA (FastAPI).
 /// - HTTPS obligatorio; en release rechaza certificados invalidos (RNF-MOV-02).
 /// - Inyecta access token en cada peticion (RF-MOV-02).
@@ -12,14 +14,23 @@ import 'package:http/io_client.dart';
 /// - Circuit breaker: tras un fallo de red, las siguientes peticiones fallan de
 ///   inmediato durante 30 s. Asi el modo demo no espera 8 s por cada pantalla.
 class ApiClient {
-  static const String businessBaseUrl = kDebugMode ? 'http://127.0.0.1:8090/api/v1' : 'https://www.opaline-ai.com/api/v1';
-  static const String aiBaseUrl = kDebugMode ? 'http://127.0.0.1:8090/api/v1' : 'https://www.opaline-ai.com/api/v1';
+  /// En debug apunta al backend Rust local. El emulador Android debe usar
+  /// 10.0.2.2 (el host real) en lugar de 127.0.0.1.
+  static String get _debugHost {
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8090/api/v1';
+    return 'http://127.0.0.1:8090/api/v1';
+  }
+
+  static String get businessBaseUrl =>
+      kDebugMode ? _debugHost : 'https://www.opaline-ai.com/api/v1';
+  static String get aiBaseUrl =>
+      kDebugMode ? _debugHost : 'https://www.opaline-ai.com/api/v1';
 
   /// Timeout de red para la API de negocio (login, planes, muro, pagos).
-  static const Duration businessTimeout = Duration(seconds: 8);
+  static const Duration businessTimeout = Duration(seconds: 12);
 
-  /// Timeout de red para la API de IA (la generacion puede tardar mas).
-  static const Duration aiTimeout = Duration(seconds: 30);
+  /// Timeout de red para la API de IA (LM Studio puede tardar con modelos grandes).
+  static const Duration aiTimeout = Duration(seconds: 180);
 
   static DateTime? _offlineUntil;
 
@@ -77,6 +88,7 @@ class ApiClient {
     Object? body,
     bool ai = false,
     Map<String, String>? extraHeaders,
+    bool retry = true,
   }) async {
     // Circuit breaker: si hace poco la API no respondio, fallar rapido.
     final offlineUntil = _offlineUntil;
@@ -97,6 +109,31 @@ class ApiClient {
       final streamed = await client.send(request).timeout(timeout);
       final response = await http.Response.fromStream(streamed).timeout(timeout);
       _offlineUntil = null; // La API respondio: desactivar circuit breaker.
+
+      // La sesion de la API dura 15 minutos. Renovar y reintentar una sola vez
+      // para que el usuario no vea errores inesperados a mitad de una tarea.
+      const noRefreshPaths = {
+        '/auth/login',
+        '/auth/register',
+        '/auth/refresh',
+        '/auth/forgot-password',
+      };
+      if (response.statusCode == 401 &&
+          retry &&
+          token != null &&
+          !noRefreshPaths.contains(path)) {
+        final refreshed = await _refreshSession();
+        if (refreshed) {
+          return await _send(
+            method,
+            path,
+            body: body,
+            ai: ai,
+            extraHeaders: extraHeaders,
+            retry: false,
+          );
+        }
+      }
       return response;
     } catch (e) {
       _offlineUntil = DateTime.now().add(const Duration(seconds: 30));
@@ -104,6 +141,31 @@ class ApiClient {
     } finally {
       client.close();
     }
+  }
+
+  Future<bool> _refreshSession() async {
+    try {
+      final refresh = await SecureStorage.read(SecureStorage.refreshToken);
+      if (refresh == null || refresh.isEmpty) return false;
+      final res = await _send(
+        'POST',
+        '/auth/refresh',
+        body: {'refresh_token': refresh},
+        retry: false,
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final access = data['access_token']?.toString();
+        if (access == null || access.isEmpty) return false;
+        await SecureStorage.write(SecureStorage.accessToken, access);
+        final newRefresh = data['refresh_token']?.toString();
+        if (newRefresh != null && newRefresh.isNotEmpty) {
+          await SecureStorage.write(SecureStorage.refreshToken, newRefresh);
+        }
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   Future<String?> _readToken() async {

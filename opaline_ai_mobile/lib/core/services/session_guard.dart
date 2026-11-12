@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../services/secure_storage.dart';
 
@@ -80,16 +79,11 @@ class SessionGuard {
   /// Desbloquea la sesion. En desktop retorna true directamente;
   /// en Android/iOS validar con biometria o contrasena.
   Future<bool> unlock(BuildContext context) async {
-    if (_biometricAvailable && _biometricEnabled) {
-      // TODO: integrar local_auth.authenticate() en Android/iOS
-    }
-
-    _authenticated = true;
-    _lastActivity = DateTime.now();
-    await SecureStorage.write(SecureStorage.lastAuthTime, _lastActivity!.toIso8601String());
-    _lockNotifier.value = false;
-    onUnlocked?.call();
-    return true;
+    // No hay factor de desbloqueo real integrado. No se concede acceso solo
+    // porque la pantalla de bloqueo se haya mostrado.
+    _authenticated = false;
+    _lockNotifier.value = true;
+    return false;
   }
 
   /// Marca la sesion como autenticada tras un login exitoso.

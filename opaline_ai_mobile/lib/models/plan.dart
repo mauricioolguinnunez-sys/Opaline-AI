@@ -28,22 +28,30 @@ class Plan {
     this.popularTag,
   });
 
-  factory Plan.fromJson(Map<String, dynamic> json) => Plan(
-        id: json['id'] ?? '',
-        name: json['name'] ?? '',
-        description: json['description'] ?? '',
-        priceMXN: (json['price_mxn'] ?? 0).toDouble(),
-        periodicity: json['periodicity'] ?? 'mensual',
-        installments: json['installments'] ?? 1,
-        features: (json['features'] as List<dynamic>?)
+  factory Plan.fromJson(Map<String, dynamic> json) {
+    final code = (json['code'] ?? '').toString();
+    final features = (json['features'] as List<dynamic>?)
             ?.map((e) => e.toString())
-            .toList() ?? [],
-        active: json['active'] ?? true,
-        starter: json['starter'] ?? false,
-        monthlyMessages: json['monthly_messages'] ?? 0,
-        ragEnabled: json['rag_enabled'] ?? false,
-        popularTag: json['popular_tag'],
-      );
+            .toList() ??
+        <String>[];
+    final rag = json['rag_enabled'] ??
+        features.any((f) => f.toLowerCase().contains('rag'));
+    return Plan(
+      id: (json['id'] ?? code).toString(),
+      name: json['name'] ?? '',
+      description: json['description'] ?? '',
+      priceMXN: ((json['price_mxn'] ?? json['price']) ?? 0).toDouble(),
+      periodicity: json['periodicity'] ?? json['period'] ?? 'mensual',
+      installments: json['installments'] ?? 1,
+      features: features,
+      active: json['active'] ?? true,
+      starter: json['starter'] ?? code == 'starter',
+      monthlyMessages:
+          json['monthly_messages'] ?? json['messages_per_month'] ?? 0,
+      ragEnabled: rag == true,
+      popularTag: json['popular_tag'] ?? (code == 'plus' ? 'Más popular' : null),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,

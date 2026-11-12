@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
 import '../core/api/api_client.dart';
+import '../core/services/secure_storage.dart';
 import '../core/services/connectivity_service.dart';
 import '../models/message.dart';
 import '../models/conversation.dart';
@@ -17,9 +19,12 @@ class ChatProvider extends ChangeNotifier {
   bool _loading = false;
   bool _sending = false;
   String? _error;
-  String _selectedModel = 'local-model';
+  String _selectedModel = '';
   List<String> _models = [];
   bool _demo = false;
+  final Map<String, String> _idempotencyKeys = <String, String>{};
+  List<Map<String, dynamic>> _pendingOperations = <Map<String, dynamic>>[];
+  final Map<String, String> _idempotencyKeys = <String, String>{};
 
   List<Conversation> get conversations => _conversations;
   Conversation? get current => _current;
@@ -51,18 +56,89 @@ class ChatProvider extends ChangeNotifier {
   Future<void> init() async {
     await loadModels();
     await loadConversations();
+    await _loadPendingOperations();
+    await _recoverPendingOperations();
+  }
+
+
+  Future<void> _loadPendingOperations() async {
+    try {
+      final raw = await SecureStorage.read('pending_chat_operations');
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      _pendingOperations = decoded
+          .whereType<Map<String, dynamic>>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
+      _pendingOperations = <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<void> _savePendingOperations() async {
+    try {
+      await SecureStorage.write('pending_chat_operations', jsonEncode(_pendingOperations));
+    } catch (_) {}
+  }
+
+  Future<void> _recoverPendingOperations() async {
+    if (_pendingOperations.isEmpty) return;
+    final pending = List<Map<String, dynamic>>.from(_pendingOperations);
+    for (final op in pending) {
+      final key = op['idempotencyKey']?.toString();
+      if (key == null || key.isEmpty) continue;
+      try {
+        final res = await ApiClient().get('/ai/operations?idempotency_key=${Uri.encodeComponent(key)}', ai: true);
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body) as Map<String, dynamic>;
+          final status = data['status']?.toString() ?? '';
+          if (status == 'completed') {
+            final cid = (data['conversation_id'] ?? op['conversationId'])?.toString();
+            final reply = (data['reply'] ?? '').toString().trim();
+            if (cid != null && reply.isNotEmpty) {
+              final conv = _conversations.where((c) => c.id == cid).toList();
+              if (conv.isNotEmpty && !conv.first.messages.any((m) => m.role == 'assistant' && m.content == reply)) {
+                conv.first.messages.add(ChatMessage(
+                  id: '${DateTime.now().millisecondsSinceEpoch}_recovered',
+                  conversationId: cid,
+                  role: 'assistant',
+                  content: reply,
+                  createdAt: DateTime.now(),
+                ));
+              }
+            }
+            _pendingOperations.removeWhere((e) => e['operationKey'] == op['operationKey']);
+            await _savePendingOperations();
+            notifyListeners();
+          } else if (status == 'failed_terminal' || status == 'manual_review') {
+            _pendingOperations.removeWhere((e) => e['operationKey'] == op['operationKey']);
+            await _savePendingOperations();
+          }
+        } else if (res.statusCode == 404) {
+          _pendingOperations.removeWhere((e) => e['operationKey'] == op['operationKey']);
+          await _savePendingOperations();
+        }
+      } catch (_) {
+        // Keep the pending operation for a later retry.
+      }
+    }
   }
 
   Future<void> loadModels() async {
     try {
       final res = await ApiClient().get('/ai/models', ai: true);
+
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         _models =
             (data['models'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-        if (_models.isNotEmpty && _selectedModel.isEmpty) {
+        final def = data['default']?.toString();
+        if (def != null && _models.contains(def)) {
+          _selectedModel = def;
+        } else if (_models.isNotEmpty && !_models.contains(_selectedModel)) {
           _selectedModel = _models.first;
         }
+        _demo = false;
       } else {
         _applyDemoModels();
       }
@@ -80,6 +156,13 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> clearPrivateData() async {
+    _conversations = <Conversation>[];
+    _current = null;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> loadConversations() async {
     _setLoading(true);
     try {
@@ -89,6 +172,15 @@ class ChatProvider extends ChangeNotifier {
         _conversations = list.map((e) => Conversation.fromJson(e)).toList();
         if (_conversations.isNotEmpty) {
           _current = _conversations.first;
+        } else {
+          await createConversation();
+          _current?.messages.add(ChatMessage(
+            id: 'welcome',
+            conversationId: _current?.id ?? '',
+            role: 'assistant',
+            content: '¡Hola! Soy Opaline, tu asistente con IA local. Puedo ayudarte a redactar, programar, estudiar o conversar. ¿Qué necesitas hoy? ✨',
+            createdAt: DateTime.now(),
+          ));
         }
       } else {
         _applyDemoConversations();
@@ -168,6 +260,12 @@ class ChatProvider extends ChangeNotifier {
     _current ??= await createConversation();
     final conv = _current!;
 
+    final operationKey = '${conv.id}::${text.trim()}';
+    final idempotencyKey = _idempotencyKeys.putIfAbsent(
+      operationKey,
+      () => '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 32)}',
+    );
+
     final userMsg = ChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       conversationId: conv.id,
@@ -175,6 +273,17 @@ class ChatProvider extends ChangeNotifier {
       content: text,
       createdAt: DateTime.now(),
     );
+
+    final pendingRecord = <String, dynamic>{
+      'operationKey': operationKey,
+      'idempotencyKey': idempotencyKey,
+      'conversationId': conv.id,
+      'message': text,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    _pendingOperations.removeWhere((e) => e['operationKey'] == operationKey);
+    _pendingOperations.add(pendingRecord);
+    await _savePendingOperations();
 
     conv.messages.add(userMsg);
     _setSending(true);
@@ -192,22 +301,36 @@ class ChatProvider extends ChangeNotifier {
     }
 
     try {
+      // El historial no debe repetir el mensaje actual: el backend lo agrega.
       final history = conv.messages
+          .where((m) => !(m.role == 'user' && identical(m, userMsg)))
           .map((m) => {'role': m.role, 'content': m.content})
           .toList();
       final res = await ApiClient().post('/ai/chat', ai: true, body: {
         'message': text,
         'model': _selectedModel,
+        'conversation_id': conv.id,
         'history': history,
+        'idempotency_key': idempotencyKey,
       });
 
+      _idempotencyKeys.remove(operationKey);
+      _pendingOperations.removeWhere((e) => e['operationKey'] == operationKey);
+      await _savePendingOperations();
+
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final content = (data['reply'] ?? '').toString().trim();
+        if (content.isEmpty) {
+          _setError('LM Studio no devolvio texto. Prueba con otro modelo o vuelve a intentar.');
+          _setSending(false);
+          return;
+        }
         final reply = ChatMessage(
           id: '${DateTime.now().millisecondsSinceEpoch}_assistant',
           conversationId: conv.id,
           role: 'assistant',
-          content: data['reply'] ?? '',
+          content: content,
           citations: (data['citations'] as List<dynamic>?)
               ?.map((e) => e as Map<String, dynamic>)
               .toList(),
@@ -216,12 +339,13 @@ class ChatProvider extends ChangeNotifier {
         conv.messages.add(reply);
         _updateTitleIfNeeded(text);
         _setSending(false);
+        notifyListeners();
         return;
       }
 
       if (res.statusCode == 401 || res.statusCode == 402 || res.statusCode == 403) {
         _setError(
-          'Necesitas una suscripcion activa o el plan Opaline Starter para chatear.',
+          'Tu sesion expiro o necesitas una suscripcion activa. Vuelve a iniciar sesion.',
         );
         _setSending(false);
         return;
@@ -231,12 +355,22 @@ class ChatProvider extends ChangeNotifier {
         _setSending(false);
         return;
       }
-
-      // 404/500/otros: la API no esta operativa -> respuesta demo.
-      _demo = true;
-      await _streamDemoReply(conv, text);
+      if (res.statusCode == 503) {
+        _setError(
+          'LM Studio no responde. Abre LM Studio e inicia el servidor local en el puerto 1234.',
+        );
+        _setSending(false);
+        return;
+      }
+      if (res.statusCode == 400) {
+        _setError('El mensaje no es valido. Debe tener entre 1 y 2000 caracteres.');
+        _setSending(false);
+        return;
+      }
+      _setError('No se pudo obtener respuesta del servidor (${res.statusCode}).');
+      _setSending(false);
     } catch (_) {
-      // No consume cuota ante error de red o LM Studio (RF-MOV-04).
+      // Sin backend: se conserva el modo demo para poder navegar la app.
       _demo = true;
       await _streamDemoReply(conv, text);
     }

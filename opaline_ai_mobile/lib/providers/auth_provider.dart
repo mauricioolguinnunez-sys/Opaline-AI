@@ -21,6 +21,14 @@ class AuthProvider extends ChangeNotifier {
   bool _initialized = false;
   bool _demoMode = false;
 
+  static final List<Future<void> Function()> _sessionClearers = <Future<void> Function()>[];
+
+  static void registerSessionClearer(Future<void> Function() clearer) {
+    if (!_sessionClearers.contains(clearer)) {
+      _sessionClearers.add(clearer);
+    }
+  }
+
   AppUser? get user => _user;
   String? get accessToken => _accessToken;
   bool get loading => _loading;
@@ -37,17 +45,21 @@ class AuthProvider extends ChangeNotifier {
     final raw = await SecureStorage.read(SecureStorage.userId);
     final name = await SecureStorage.read(SecureStorage.userName);
     final email = await SecureStorage.read(SecureStorage.userEmail);
-    _demoMode = (await SecureStorage.read('demo_mode')) == 'true';
+    // El modo demo anterior no es una sesion autenticada valida. Se elimina
+    // para que un valor legado no conceda acceso sin backend.
+    _demoMode = false;
+    await SecureStorage.delete('demo_mode');
+
     if (_accessToken != null && raw != null) {
       _user = AppUser(
         id: raw,
         name: name ?? '',
         email: email ?? '',
-        planId: _demoMode ? 'plus' : '',
-        planName: _demoMode ? 'Opaline Plus' : 'Starter',
-        subscriptionActive: _demoMode,
-        dailyQuotaRemaining: _demoMode ? 180 : 0,
-        dailyQuotaLimit: _demoMode ? 200 : 0,
+        planId: '',
+        planName: 'Starter',
+        subscriptionActive: false,
+        dailyQuotaRemaining: 0,
+        dailyQuotaLimit: 0,
         createdAt: DateTime.now(),
       );
       SessionGuard.instance.markAuthenticated();
@@ -91,15 +103,13 @@ class AuthProvider extends ChangeNotifier {
         _setLoading(false);
         return false;
       }
-      // Servidor no disponible (404/500/otros) -> modo demo.
-      await _activateDemoSession(name: name, email: email);
+      _setError('El servidor no pudo crear la cuenta (${res.statusCode}).');
       _setLoading(false);
-      return true;
-    } catch (e) {
-      // Sin red / timeout -> modo demo para poder probar la app.
-      await _activateDemoSession(name: name, email: email);
+      return false;
+    } catch (_) {
+      _setError('No se pudo crear la cuenta. Verifica tu conexion e intenta de nuevo.');
       _setLoading(false);
-      return true;
+      return false;
     }
   }
 
@@ -131,69 +141,43 @@ class AuthProvider extends ChangeNotifier {
         _setLoading(false);
         return false;
       }
-      // API no disponible -> modo demo.
-      await _activateDemoSession(name: _nameFromEmail(email), email: email);
+      _setError('El servidor no pudo iniciar sesión (${res.statusCode}).');
       _setLoading(false);
-      return true;
-    } catch (e) {
-      // Sin red / timeout (ya no se cuelga: ApiClient tiene timeout de 12 s).
-      await _activateDemoSession(name: _nameFromEmail(email), email: email);
+      return false;
+    } catch (_) {
+      _setError('No se pudo iniciar sesion. Verifica tu conexion e intenta de nuevo.');
       _setLoading(false);
-      return true;
+      return false;
     }
   }
 
-  String _nameFromEmail(String email) {
-    final raw = email.split('@').first.replaceAll(RegExp(r'[._-]+'), ' ').trim();
-    if (raw.isEmpty) return 'Usuario Opaline';
-    return raw
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
-  }
-
-  /// Crea una sesion local de demostracion (sin backend) para poder recorrer
-  /// toda la app: planes, chat, muro, suscripcion.
-  Future<void> _activateDemoSession({required String name, required String email}) async {
-    final now = DateTime.now();
-    _demoMode = true;
-    _accessToken = 'demo-token-${now.millisecondsSinceEpoch}';
-    _refreshToken = 'demo-refresh-${now.millisecondsSinceEpoch}';
-    _user = AppUser(
-      id: 'demo-user',
-      name: name,
-      email: email,
-      planId: 'plus',
-      planName: 'Opaline Plus',
-      subscriptionActive: true,
-      nextBilling: DateTime(now.year, now.month + 1, now.day),
-      dailyQuotaRemaining: 180,
-      dailyQuotaLimit: 200,
-      createdAt: now,
-    );
-
-    await SecureStorage.write(SecureStorage.accessToken, _accessToken!);
-    await SecureStorage.write(SecureStorage.refreshToken, _refreshToken!);
-    await SecureStorage.write(SecureStorage.userId, _user!.id);
-    await SecureStorage.write(SecureStorage.userName, _user!.name);
-    await SecureStorage.write(SecureStorage.userEmail, _user!.email);
-    await SecureStorage.write('demo_mode', 'true');
-    SessionGuard.instance.markAuthenticated();
-    notifyListeners();
-  }
 
   Future<void> _onLoginSuccess(Map<String, dynamic> data) async {
+    final accessToken = data['access_token']?.toString();
+    final refreshToken = data['refresh_token']?.toString();
+    final rawUser = data['user'];
+    if (accessToken == null || accessToken.isEmpty ||
+        refreshToken == null || refreshToken.isEmpty ||
+        rawUser is! Map<String, dynamic>) {
+      throw const FormatException('Respuesta de autenticacion incompleta');
+    }
+
+    final user = AppUser.fromJson(rawUser);
+    if (user.id.isEmpty) {
+      throw const FormatException('Usuario invalido');
+    }
+
     _demoMode = false;
-    _accessToken = data['access_token'];
-    _refreshToken = data['refresh_token'];
-    _user = AppUser.fromJson(data['user'] ?? {});
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    _user = user;
+
     await SecureStorage.write(SecureStorage.accessToken, _accessToken!);
     await SecureStorage.write(SecureStorage.refreshToken, _refreshToken!);
     await SecureStorage.write(SecureStorage.userId, _user!.id);
     await SecureStorage.write(SecureStorage.userName, _user!.name);
     await SecureStorage.write(SecureStorage.userEmail, _user!.email);
-    await SecureStorage.write('demo_mode', 'false');
+    await SecureStorage.delete('demo_mode');
     SessionGuard.instance.markAuthenticated();
     notifyListeners();
   }
@@ -213,6 +197,14 @@ class AuthProvider extends ChangeNotifier {
     await SecureStorage.delete(SecureStorage.userName);
     await SecureStorage.delete(SecureStorage.userEmail);
     await SecureStorage.delete('demo_mode');
+
+    // Limpia datos privados de los demas providers sin depender de su ciclo.
+    for (final clearer in List<Future<void> Function()>.from(_sessionClearers)) {
+      try {
+        await clearer();
+      } catch (_) {}
+    }
+
     await SessionGuard.instance.logout();
     notifyListeners();
   }
@@ -225,9 +217,15 @@ class AuthProvider extends ChangeNotifier {
     try {
       final res = await ApiClient().post('/auth/refresh', body: {'refresh_token': refresh});
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
         _accessToken = data['access_token'];
-        await SecureStorage.write(SecureStorage.accessToken, _accessToken!);
+        _refreshToken = data['refresh_token'] ?? _refreshToken;
+        if (_accessToken != null) {
+          await SecureStorage.write(SecureStorage.accessToken, _accessToken!);
+        }
+        if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+          await SecureStorage.write(SecureStorage.refreshToken, _refreshToken!);
+        }
         notifyListeners();
         return true;
       }
@@ -307,7 +305,11 @@ class AuthProvider extends ChangeNotifier {
     try {
       final res = await ApiClient().get('/auth/sessions');
       if (res.statusCode == 200) {
-        return jsonDecode(res.body) as List;
+        final data = jsonDecode(res.body);
+        if (data is List) return data;
+        if (data is Map<String, dynamic> && data['sessions'] is List) {
+          return data['sessions'] as List;
+        }
       }
     } catch (_) {}
     return [];

@@ -188,6 +188,14 @@ class PlanProvider extends ChangeNotifier {
   }
 
   /// Estado de suscripcion, proximo cobro, historial de pagos y facturas (RF-MOV-03).
+  Future<void> clearPrivateData() async {
+    _subscription = null;
+    _invoices = <Invoice>[];
+    _demo = false;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> loadSubscription() async {
     if (_demo) {
       _applyDemoSubscription();
@@ -197,15 +205,39 @@ class PlanProvider extends ChangeNotifier {
     try {
       final res = await ApiClient().get('/suscripcion');
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final subJson = data['subscription'];
-        _subscription = subJson is Map<String, dynamic>
-            ? Subscription.fromJson(subJson)
-            : null;
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final subJson = data['subscription'] is Map<String, dynamic>
+            ? data['subscription'] as Map<String, dynamic>
+            : data;
+        _demo = false;
+        _subscription = (subJson['status'] == null || subJson['status'] == 'none')
+            ? null
+            : Subscription.fromJson(subJson);
         _invoices = (data['invoices'] as List<dynamic>?)
                 ?.map((e) => Invoice.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [];
+        // El backend Rust expone los pagos en /payments/history.
+        try {
+          final payRes = await ApiClient().get('/payments/history');
+          if (payRes.statusCode == 200) {
+            final list = jsonDecode(payRes.body) as List;
+            _invoices = list.map((raw) {
+              final p = raw as Map<String, dynamic>;
+              final invoiceId = p['invoice_id']?.toString();
+              return Invoice(
+                id: (invoiceId ?? p['id'] ?? '').toString(),
+                subscriptionId: (_subscription?.id ?? ''),
+                amountMXN: ((p['amount'] ?? 0) as num).toDouble(),
+                status: p['status'] == 'completed' ? 'paid' : (p['status'] ?? 'pending'),
+                issuedAt: DateTime.tryParse(
+                        (p['created_at'] ?? '').toString().replaceFirst(' ', 'T')) ??
+                    DateTime.now(),
+                pdfUrl: invoiceId == null ? null : '/facturas/$invoiceId/pdf',
+              );
+            }).toList();
+          }
+        } catch (_) {}
         _setLoading(false);
         return;
       }
@@ -269,8 +301,13 @@ class PlanProvider extends ChangeNotifier {
       _setLoading(false);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final url = data['checkout_url'] ?? data['url'];
-        if (url is String && url.isNotEmpty) return data;
+        final orderId = data['order_id']?.toString();
+        if (orderId != null && orderId.isNotEmpty) {
+          // El backend local crea una orden real aunque no haya PayPal externo.
+          // La pantalla muestra la confirmación local y luego llama a verify.
+          data['demo'] = true;
+          return data;
+        }
       }
       // Sin backend de pagos -> simulado.
       _demo = true;
@@ -303,6 +340,7 @@ class PlanProvider extends ChangeNotifier {
     try {
       final res = await ApiClient().get('/payments/paypal/verify/$orderId');
       if (res.statusCode == 200) {
+        _demo = false;
         await loadSubscription();
         _setLoading(false);
         return true;

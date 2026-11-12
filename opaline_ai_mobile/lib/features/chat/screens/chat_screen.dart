@@ -74,12 +74,27 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Chat Opaline AI', style: TextStyle(fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
-            Text('Modelo: ${chat.selectedModel}', style: const TextStyle(fontSize: 12, fontFamily: 'Poppins')),
+            const Text('Opaline Chat', style: TextStyle(fontWeight: FontWeight.w700, fontFamily: 'Poppins')),
+            Text(
+              '${_shortModel(chat.selectedModel)} · LM Studio local',
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w400, color: isDark ? AppTheme.textDarkSecondary : AppTheme.textLightSecondary),
+            ),
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.tune), onPressed: () => setState(() => _showModelPicker = !_showModelPicker)),
+          IconButton(
+            tooltip: 'Nueva conversación',
+            icon: const Icon(Icons.add_comment_outlined),
+            onPressed: () {
+              context.read<ChatProvider>().createConversation();
+              setState(() {});
+            },
+          ),
+          IconButton(
+            tooltip: 'Elegir modelo',
+            icon: const Icon(Icons.tune),
+            onPressed: () => setState(() => _showModelPicker = !_showModelPicker),
+          ),
         ],
       ),
       body: OpalineDecoration(
@@ -89,7 +104,9 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: chat.current == null
                   ? const Center(child: Text('Sin conversaciones'))
-                  : ListView.builder(
+                  : chat.current!.messages.isEmpty
+                      ? const Center(child: Text('Escribe tu primer mensaje ✨'))
+                      : ListView.builder(
                       controller: _scroll,
                       reverse: true,
                       padding: const EdgeInsets.all(12),
@@ -116,20 +133,27 @@ class _ModelPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: (isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: chat.models.map((m) {
-          final selected = chat.selectedModel == m;
-          return ChoiceChip(
-            label: Text(m, style: TextStyle(fontSize: 12, fontFamily: 'Poppins', color: selected ? Colors.white : null)),
-            selected: selected,
-            selectedColor: AppTheme.primaryLight,
-            onSelected: (_) => chat.selectModel(m),
-          );
-        }).toList(),
+      color: isDark ? AppTheme.surfaceDark : Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Modelo de IA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? AppTheme.textDarkSecondary : AppTheme.textLightSecondary)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: chat.models.map((m) {
+              final selected = chat.selectedModel == m;
+              return ChoiceChip(
+                label: Text(m, style: TextStyle(fontSize: 12, fontFamily: 'Poppins', color: selected ? Colors.white : null)),
+                selected: selected,
+                selectedColor: AppTheme.primaryLight,
+                onSelected: (_) => chat.selectModel(m),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
@@ -272,6 +296,12 @@ class _Composer extends StatelessWidget {
   }
 }
 
+String _shortModel(String model) {
+  if (model.isEmpty) return 'Cargando modelo…';
+  final parts = model.split('/');
+  return parts.length > 1 ? parts.last : model;
+}
+
 class _AccessRequiredScreen extends StatelessWidget {
   final VoidCallback onBuy;
   const _AccessRequiredScreen({required this.onBuy});
@@ -286,11 +316,11 @@ class _AccessRequiredScreen extends StatelessWidget {
             children: [
               const Icon(Icons.lock_outline, size: 64, color: AppTheme.primaryLight),
               const SizedBox(height: 20),
-              Text('Suscripcion requerida', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: isDark ? AppTheme.textDark : AppTheme.textLight, fontFamily: 'Poppins')),
+              Text('Inicia sesión para chatear', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: isDark ? AppTheme.textDark : AppTheme.textLight, fontFamily: 'Poppins')),
               const SizedBox(height: 10),
-              Text('Necesitas una suscripcion activa o el plan Opaline Starter para chatear.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: isDark ? AppTheme.textDarkSecondary : AppTheme.textLightSecondary, fontFamily: 'Poppins')),
+              Text('Necesitas una cuenta de Opaline para guardar tus conversaciones y usar los modelos locales.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: isDark ? AppTheme.textDarkSecondary : AppTheme.textLightSecondary, fontFamily: 'Poppins')),
               const SizedBox(height: 24),
-              SizedBox(width: double.infinity, height: 52, child: ElevatedButton(onPressed: onBuy, child: const Text('Ver planes y comprar'))),
+              SizedBox(width: double.infinity, height: 52, child: ElevatedButton(onPressed: onBuy, child: const Text('Volver al inicio'))),
             ],
           ),
         ),

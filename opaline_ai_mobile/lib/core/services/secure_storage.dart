@@ -1,56 +1,95 @@
 import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Almacenamiento local de credenciales y tokens.
+/// Almacenamiento de credenciales y tokens respaldado por mecanismos nativos.
 ///
-/// Implementacion multiplataforma (compila en Linux, Android, iOS, Web, Windows, macOS)
-/// usando shared_preferences con cifrado ligero (XOR + base64) para no guardar
-/// credenciales en texto plano (RNF-MOV-02).
+/// - Android: EncryptedSharedPreferences respaldado por Android Keystore.
+/// - iOS/macOS: Keychain.
+/// - Linux/Windows/Web: backend nativo de flutter_secure_storage.
 ///
-/// NOTA PARA PRODUCCION (Android/iOS): reemplazar esta clase por flutter_secure_storage
-/// (Keychain en iOS / EncryptedSharedPreferences en Android) para cumplir RNF-MOV-02 al 100 %.
+/// Solo se conserva shared_preferences para migrar una unica vez los valores
+/// legados cifrados con XOR. Tras la migracion se eliminan de preferences.
 class SecureStorage {
-  static SharedPreferences? _prefs;
+  static const FlutterSecureStorage _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+  );
+
+  static SharedPreferences? _legacyPrefs;
+
+  static const List<String> _keys = <String>[
+    accessToken,
+    refreshToken,
+    tokenExpiry,
+    userEmail,
+    userName,
+    userId,
+    planId,
+    biometricEnabled,
+    lastAuthTime,
+    deviceId,
+    'demo_mode',
+  ];
 
   static Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
+    _legacyPrefs = await SharedPreferences.getInstance();
+    await _migrateLegacyValues();
   }
 
   static Future<void> write(String key, String value) async {
-    await _prefs!.setString(key, _encrypt(value));
+    await _storage.write(key: key, value: value);
   }
 
   static Future<String?> read(String key) async {
-    final v = _prefs?.getString(key);
-    if (v == null) return null;
-    return _decrypt(v);
+    return _storage.read(key: key);
   }
 
   static Future<void> delete(String key) async {
-    await _prefs!.remove(key);
+    await _storage.delete(key: key);
+    await _legacyPrefs?.remove(key);
   }
 
   static Future<void> deleteAll() async {
-    await _prefs!.clear();
+    for (final key in _keys) {
+      await _storage.delete(key: key);
+      await _legacyPrefs?.remove(key);
+    }
   }
 
-  static bool get isInitialized => _prefs != null;
+  static bool get isInitialized => true;
 
-  // ---------- Cifrado ligero (no es sustituto de Keychain en produccion) ----------
+  static Future<void> _migrateLegacyValues() async {
+    for (final key in _keys) {
+      try {
+        final secureValue = await _storage.read(key: key);
+        final legacyValue = _legacyPrefs?.getString(key);
+        if (secureValue != null) {
+          await _legacyPrefs?.remove(key);
+          continue;
+        }
+        if (legacyValue == null) continue;
+
+        String value;
+        try {
+          value = _decryptLegacy(legacyValue);
+        } catch (_) {
+          // Si el valor legado no era cifrado XOR, se migra tal cual.
+          value = legacyValue;
+        }
+        await _storage.write(key: key, value: value);
+        await _legacyPrefs?.remove(key);
+      } catch (_) {
+        // La migracion es best-effort: un fallo no debe bloquear el arranque.
+      }
+    }
+  }
+
+  // ---------- Compatibilidad temporal con el almacenamiento legado XOR ----------
   static const String _xorKey = 'opaline_secure_storage_v1';
 
-  static String _encrypt(String plain) {
-    final bytes = utf8.encode(plain);
-    final key = utf8.encode(_xorKey);
-    final enc = bytes
-        .asMap()
-        .entries
-        .map((e) => e.value ^ key[e.key % key.length])
-        .toList();
-    return base64Url.encode(enc);
-  }
-
-  static String _decrypt(String cipher) {
+  static String _decryptLegacy(String cipher) {
     final bytes = base64Url.decode(cipher);
     final key = utf8.encode(_xorKey);
     final dec = bytes
